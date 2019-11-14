@@ -41,7 +41,7 @@ var FILESTDOUT = 5
 // remainDays: 保留日志天数
 // level: 打印等级。DEBUG, INFO,WARNING, ERROR
 func InitLogging(logType int, fileName, fileDir string, remainDays, level int) {
-	logging = New(logType, fileName, fileDir, 0, level, true, false, 3)
+	logging = New(logType, fileName, fileDir, remainDays, level, true, false, 3)
 }
 
 // CloseDefault 把默认的日志关闭
@@ -118,7 +118,7 @@ func New(logType int, filename string, fileDir string, remainDays int,
 	level int, isLogFilePath bool,
 	isLogFunc bool, callerDepth int) *Logger {
 	fmt.Printf("logType:%v filename:%v fileDir:%v remainDays:%v "+
-		"level:%v isLogFilePath:%v isLogFunc:%v callerDepth:%v",
+		"level:%v isLogFilePath:%v isLogFunc:%v callerDepth:%v\n",
 		logType, filename, fileDir, remainDays, level, isLogFilePath, isLogFunc, callerDepth)
 
 	// result := newLogger(logFile, flag)
