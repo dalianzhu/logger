@@ -22,7 +22,7 @@ import (
 var logging *Logger
 
 func init() {
-	logging = New("", true, false, DEBUG, 3, STDOUT)
+	logging = New(STDOUT, "", "", 0, DEBUG, true, false, 3)
 }
 
 var DEBUG = 0
@@ -35,9 +35,13 @@ var STDOUT = 3
 var FILESTDOUT = 5
 
 //InitLogging 初始化默认的日志对象，初始化后，就能使用Error，Info函数记录日志
-func InitLogging(inputfilename string, level int, logType int) {
-	logging = New(inputfilename, true, false,
-		level, 3, logType)
+// logType: 日志类型，FILE，STDOUT，FILESTDOUT
+// fileName:文件夹下创建的文件名,如log.log
+// fileDir:文件夹目录，如/home/log 如果传空则为当前可执行目录下的logs目录
+// remainDays: 保留日志天数
+// level: 打印等级。DEBUG, INFO,WARNING, ERROR
+func InitLogging(logType int, fileName, fileDir string, remainDays, level int) {
+	logging = New(logType, fileName, fileDir, 0, level, true, false, 3)
 }
 
 // CloseDefault 把默认的日志关闭
@@ -91,25 +95,35 @@ type Logger struct {
 	curFile       *os.File
 	todaydate     string
 	filename      string
+	filePath      string
 	runtimeCaller int
 	isLogFilePath bool
 	isLogFunc     bool
 	msgQueue      chan string // 所有的日志先到这来
 	closedCtx     context.Context
 	closedCancel  context.CancelFunc
+	remainDays    int
 }
 
 //New 创建一个自己的日志对象。
-// filename:在logs文件夹下创建的文件名
-// logFilePath: 日志中记录文件路径
-// logFunc: 日志中记录调用函数
-// level: 打印等级。DEBUG, INFO, ERROR
+// logType: 日志类型，FILE，STDOUT，FILESTDOUT
+// filename:文件夹下创建的文件名,如log.log
+// fileDir:文件夹目录，不以 / 结尾。如/home/log 如果传空则为当前可执行目录下的logs目录
+// remainDays: 保留日志天数
+// level: 打印等级。DEBUG, INFO,WARNING, ERROR
+// isLogFilePath: 日志中记录文件路径
+// isLogFunc: 日志中记录调用函数
 // callerDepth: 文件路径深度，设定适当的值，否则文件路径不正确
-func New(filename string, logFilePath bool,
-	logFunc bool, level int, callerDepth int, logType int) *Logger {
+func New(logType int, filename string, fileDir string, remainDays int,
+	level int, isLogFilePath bool,
+	isLogFunc bool, callerDepth int) *Logger {
+	fmt.Printf("logType:%v filename:%v fileDir:%v remainDays:%v "+
+		"level:%v isLogFilePath:%v isLogFunc:%v callerDepth:%v",
+		logType, filename, fileDir, remainDays, level, isLogFilePath, isLogFunc, callerDepth)
 
 	// result := newLogger(logFile, flag)
 	result := new(Logger)
+	result.remainDays = remainDays
 	result.msgQueue = make(chan string, 1000)
 	result.closedCtx, result.closedCancel = context.WithCancel(context.Background())
 
@@ -119,9 +133,16 @@ func New(filename string, logFilePath bool,
 		if filename == "" {
 			panic("logger init failed, filepath is emtpy")
 		}
+		var dir string
+		if fileDir == "" {
+			dir, _ = filepath.Abs(filepath.Dir(os.Args[0]))
+			dir += "/logs"
+		} else {
+			dir, _ = filepath.Abs(fileDir)
+		}
+		filepath := dir + "/" + filename
+		result.filePath = filepath
 
-		dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-		filepath := dir + "/logs/" + filename
 		fmt.Println("logger filepath", filepath)
 		logFile, err := os.OpenFile(filepath,
 			os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
@@ -146,8 +167,8 @@ func New(filename string, logFilePath bool,
 	result.innerLogger = log.New(multi, "", 0)
 	result.filename = filename
 	result.runtimeCaller = callerDepth
-	result.isLogFilePath = logFilePath
-	result.isLogFunc = logFunc
+	result.isLogFilePath = isLogFilePath
+	result.isLogFunc = isLogFunc
 	result.level = level
 	result.todaydate = time.Now().Format("2006-01-02")
 
@@ -332,14 +353,14 @@ func (logobj *Logger) doRotate() {
 		return
 	}
 
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 	prefile := logobj.curFile
 
 	_, err := prefile.Stat()
 	if err == nil {
-		filePath := dir + "/logs/" + logobj.filename
-
+		// 把当前的文件关闭并改名
+		filePath := logobj.filePath
 		err := prefile.Close()
+
 		fmt.Printf("doRotate close err %v", err)
 		nowTime := time.Now()
 		time1dAgo := nowTime.Add(-1 * time.Hour * 24)
@@ -347,8 +368,8 @@ func (logobj *Logger) doRotate() {
 		fmt.Printf("doRotate rename err %v", err)
 	}
 
-	if logobj.filename != "" {
-		nextfile, err := os.OpenFile(dir+"/logs/"+logobj.filename,
+	if logobj.filePath != "" {
+		nextfile, err := os.OpenFile(logobj.filePath,
 			os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
 			fmt.Println(err.Error())
@@ -369,13 +390,12 @@ func (logobj *Logger) doRotate() {
 }
 
 func (logobj *Logger) deleteHistory() {
-	// 尝试删除5天前的日志
+	// 尝试删除remainDays天前的日志
 	fmt.Println("deleteHistory run")
 	nowTime := time.Now()
-	time5dAgo := nowTime.Add(-1 * time.Hour * 24 * 5)
+	timeAgo := nowTime.Add(-1 * time.Hour * 24 * time.Duration(logobj.remainDays))
 
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	filePath := dir + "/logs/" + logobj.filename + "." + time5dAgo.Format("2006-01-02")
+	filePath := logobj.filePath + "." + timeAgo.Format("2006-01-02")
 
 	_, err := os.Stat(filePath)
 	if err == nil {

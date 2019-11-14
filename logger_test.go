@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-func testLevel(level int, file string, filetype int) {
-	InitLogging(file, level, filetype)
+func testLevel(level int, file, path string, filetype int) {
+	InitLogging(filetype, file, path, 5, level)
 	format, val := "haha %v", "yzh"
 	Debugf(format, val)
 	Infof(format, val)
@@ -23,17 +23,17 @@ func testLevel(level int, file string, filetype int) {
 }
 func TestLogger(t *testing.T) {
 	fmt.Println("test debug")
-	testLevel(DEBUG, "", STDOUT)
+	testLevel(DEBUG, "", "", STDOUT)
 
 	fmt.Println("test info")
-	testLevel(INFO, "", STDOUT)
+	testLevel(INFO, "", "", STDOUT)
 
 	fmt.Println("test warning")
-	testLevel(WARNING, "", STDOUT)
+	testLevel(WARNING, "", "", STDOUT)
 
 	fmt.Println("test error")
-	testLevel(ERROR, "", STDOUT)
+	testLevel(ERROR, "", "", STDOUT)
 
-	// fmt.Println("test file")
-	// testLevel(DEBUG, "log.log", FILE)
+	fmt.Println("test file")
+	testLevel(DEBUG, "log.log", "./", FILE)
 }
