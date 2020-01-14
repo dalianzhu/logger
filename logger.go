@@ -5,7 +5,6 @@
 package logger
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -14,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -185,7 +185,7 @@ func (logobj *Logger) Close() error {
 }
 
 func (logobj *Logger) getFormat(prefix, format string) string {
-	var buf bytes.Buffer
+	var buf strings.Builder
 
 	// 增加时间
 	buf.WriteString(time.Now().Format("2006-01-02 15:04:05 "))
